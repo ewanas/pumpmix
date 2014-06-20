@@ -4,11 +4,13 @@
  *
  * The commands are as follows:
  *  MAX <int>
- *    Sets the maximum value in Newtons that the pump should operate at.
- *    Any value above that, and if the pump is in AUTO mode, will stop the pump.
+ *    Sets the maximum value to be read from the FSR that the pump should stop
+ *    to operate at. Any value above that, and if the pump is in AUTO mode,
+ *    will stop the pump.
  *  MIN <int>
- *    Sets the minimum value in Newtons that the Servo should start to operate at.
- *    Any value below that, and if the servo is in AUTO mode, the servo will be stopped.
+ *    Sets the minimum value to be read from the FSR that the Servo should start
+ *    to operate at. Any value below that, and if the servo is in AUTO mode,
+ *    the servo will be stopped.
  *  PUMP <ON|OFF|AUTO>
  *    If AUTO, pump is on, if pressure is <= MAX
  *    Otherwise, according to ON, OFF
@@ -17,18 +19,19 @@
  *    Otherwise, according to ON, OFF
  *  STATE
  *    Generates a response in the following format
- *      (ON|OFF);(ON|OFF);FSR;
- *      FSR is a string representing a floating point number which denotes the
- *      force in Newtons
+ *      (ON|OFF|AUTO);(ON|OFF|AUTO);FSR;MIN;MAX;
+ *      FSR is a floating point which denotes the force in Newtons
+ *      MIN is an integer which denotes the current minimum
+ *      MAX is an integer which denotes the current maximum
  */
 
-#define PUMP 3
-#define SERVO 4
-#define FSR 5
+#define PUMP  4
+#define SERVO 3
+#define FSR   A0
 
-#define ON 1
-#define OFF 0
-#define AUTO 2
+#define OFF   0
+#define ON    1
+#define AUTO  2
 
 int startsWith (char* str, char* value) {
   return !(strncmp (str, value, strlen (value)));
@@ -58,6 +61,8 @@ void setup () {
   pinMode (FSR, INPUT);
 
   Servo.state = Pump.state = AUTO;
+  Range.minimum = 400;
+  Range.maximum = 800l;
 
   Serial.begin (9600);
 }
@@ -92,7 +97,7 @@ void servoCmd (char* cmd) {
 
 void maxCmd (char* cmd) {
   int tmp;
-  scanf (cmd, "%d", &tmp);
+  sscanf (cmd, "%d", &tmp);
 
   if (tmp < Range.minimum) {
     errorCmd ("Max error, value less than minimum", cmd);
@@ -105,9 +110,9 @@ void maxCmd (char* cmd) {
 
 void minCmd (char* cmd) {
   int tmp;
-  scanf (cmd, "%d", &tmp);
+  sscanf (cmd, "%d", &tmp);
 
-  if (tmp > Range.minimum) {
+  if (tmp > Range.maximum) {
     errorCmd ("Min error, value greater than maximum", cmd);
   } else {
     Range.minimum = tmp;
@@ -133,15 +138,21 @@ void stateCmd () {
     Serial.print ("AUTO;");
   }
 
-  Serial.print (Fsr.reading, 3);
-  Serial.println (";");
+  Serial.print (Fsr.value, 3);
+  Serial.print (";");
+  Serial.print (Range.minimum);
+  Serial.print (";");
+  Serial.print (Range.maximum);
+  Serial.print (";");
+  Serial.print ("\n");
 }
 
 void errorCmd (char* errorType, char* cmd) {
   Serial.print ("ERROR: ");
   Serial.print (errorType);
   Serial.print(": ");
-  Serial.println (cmd);
+  Serial.print (cmd);
+  Serial.print ("\n");
 }
 
 void readInput () {
@@ -172,6 +183,8 @@ void readInput () {
 }
 
 void readFsr () {
+  Fsr.reading = analogRead (FSR);
+  Fsr.value = (float)(Fsr.reading);
 }
 
 void servo () {
@@ -209,4 +222,4 @@ void loop () {
 
   servo ();
   pump ();
-}
+ }
